@@ -1,16 +1,15 @@
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
-################## 结构格式互转 ##################
-# 自动识别并读人SMILES InChI Molblock SDFblock PDBblock
+################## Structure Format Conversion ##################
+# Automatically recognize and read SMILES, InChI, Molblock, SDFblock, PDBblock
 # https://chemistry.stackexchange.com/questions/34563/pubchem-inchi-smiles-and-uniqueness
-# 以InChi=1S/…开头的InChi标识符是标准InChI。在标准InChI中，InChI标识符“对于任何移动氢原子的排列都必须相同”
-# 以InChI=1/…开始为非标准InChI，包括一个以/f开头的额外层（fixed-hydrogen layer）。
-# 标准InChI生成结构与SMILES不同，而非标准InChI生成结构与SMILES相同，非标准InChI生成生成代码：Chem.MolToInchi(mol1, options='/FixedH')
-# 自动识别并读人SMILES InChI Molblock SDFblock PDBblock
+# InChI identifiers starting with InChI=1S/... are standard InChI; a standard InChI "must be identical for any arrangement of mobile hydrogens".
+# Identifiers starting with InChI=1/... are non-standard InChI and include an extra layer beginning with /f (the fixed-H layer).
+# A standard-InChI-derived structure differs from SMILES, while a non-standard InChI matches the SMILES structure; non-standard InChI generation code: Chem.MolToInchi(mol1, options='/FixedH')
 
 
-# 生成 SMILES InChI InChIKey Molblock SDFblock PDBblock
+# Generate SMILES, InChI, InChIKey, Molblock, SDFblock, PDBblock
 def output_molecule(mol, pdbblock=None, conformation=None):
     """
 
@@ -27,7 +26,7 @@ def output_molecule(mol, pdbblock=None, conformation=None):
     inchi = Chem.MolToInchi(mol, options='/FixedH')
     inchikey = Chem.InchiToInchiKey(inchi)
     molblock = Chem.MolToMolBlock(mol, includeStereo=True)
-    # PDBblock需要通过空间结构保存手性, 因此其他格式转PDB时需要先创建3D构象;
+    # A PDBblock needs spatial coordinates to preserve chirality, so converting other formats to PDB requires generating a 3D conformation first;
     if pdbblock is None and conformation is not None:
         pdbblock = Chem.MolToPDBBlock(conformation)
     return {'smiles': smiles, 'inchi': inchi, 'inchikey': inchikey, 'molblock': molblock, 'pdbblock': pdbblock}
@@ -46,8 +45,8 @@ def predict_3d_conformation(mol):
 
     """
     # molecule = Chem.MolFromSmiles(smiles)
-    mol_3d = Chem.AddHs(mol.__copy__())  # 添加氢
-    AllChem.EmbedMolecule(mol_3d, AllChem.ETKDG())  # 生成 3D 坐标
+    mol_3d = Chem.AddHs(mol.__copy__())  # Add hydrogens
+    AllChem.EmbedMolecule(mol_3d, AllChem.ETKDG())  # Generate 3D coordinates
     return mol_3d
 
 
@@ -64,8 +63,8 @@ def mol_optimize(mol):
 
     """
 
-    # 能量最小化：UFF (Universal Force Field)适用于小分子的力场；多肽建模和优化，专门的生物分子建模工具（如 AMBER、CHARMM 或 GROMACS）会更合适
-    AllChem.UFFOptimizeMolecule(mol)  # 使用 UFF 力场进行优化
+    # Energy minimization: UFF (Universal Force Field) suits small molecules; for peptide modeling and optimization, dedicated biomolecular tools (e.g., AMBER, CHARMM, or GROMACS) are more appropriate
+    AllChem.UFFOptimizeMolecule(mol)  # Optimize with the UFF force field
     return mol
 
 

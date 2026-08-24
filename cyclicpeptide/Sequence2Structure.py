@@ -72,8 +72,8 @@ def seq2stru_essentialAA(sequence, cyclic=True):
             sequence = [code2symbol(code)[0] for code in sequence.split('-')]
             sequence = ''.join(sequence)
         peptide = create_peptide_of_essentialAA(sequence, cyclic=cyclic)
-        peptide = Chem.RemoveHs(peptide)  # 移除所有隐式氢原子
-        Chem.AssignAtomChiralTagsFromStructure(peptide)  # 重新计算所有隐式氢原子
+        peptide = Chem.RemoveHs(peptide)  # Remove all hydrogen atoms
+        Chem.AssignAtomChiralTagsFromStructure(peptide)  # Reassign chiral tags from the structure
         smiles = Chem.MolToSmiles(peptide, canonical=True)
         return smiles, peptide
     except:
@@ -102,8 +102,8 @@ def seq2stru_no_essentialAA(sequence, references, cyclic=True):
         peptide = create_peptide_of_no_essentialAA(sequence, references, cyclic=cyclic)
         smiles = Chem.MolToSmiles(peptide, canonical=True)
         try:
-            peptide = Chem.RemoveHs(peptide)  # 移除所有隐式氢原子
-            Chem.AssignAtomChiralTagsFromStructure(peptide)  # 重新计算所有隐式氢原子
+            peptide = Chem.RemoveHs(peptide)  # Remove all hydrogen atoms
+            Chem.AssignAtomChiralTagsFromStructure(peptide)  # Reassign chiral tags from the structure
             return smiles, peptide
         except:
             return smiles, peptide
@@ -120,13 +120,13 @@ def code2symbol(code):
 
     """
 
-    # 打开文本文件并读取内容
-    file_path = AminoAcids_path  # 替换为你的文件路径
+    # Open the text file and read its contents
+    file_path = AminoAcids_path  # Replace with your file path
     AminoAcids = []
     with open(file_path, 'r', encoding='utf-8') as file:
         """Reads the contents of the file line by line and adds it to the list"""
         for line in file:
-            """# 去除行尾的换行符，并将参数添加到列表中"""
+            """Strip the trailing newline and append the entry to the list"""
             AminoAcids.append(eval(line.strip()))
     c2s = {i[1]: [i[0], i[2]] for i in AminoAcids}
     if code.upper() in c2s.keys():
@@ -157,21 +157,21 @@ def link_aa_by_peptide_bond(mol, c_index, n_index):
 
     o_index = None
     h_index = None
-    # 查找与该碳原子相连的羟基的氧和氢原子
+    # Find the oxygen and hydrogen atoms of the hydroxyl group attached to this carbon atom
     for atom in mol.GetAtomWithIdx(c_index).GetNeighbors():
         if atom.GetSymbol() == 'O' and mol.GetBondBetweenAtoms(atom.GetIdx(), c_index).GetBondType() == Chem.BondType.SINGLE:
             o_index = atom.GetIdx()
             for h_atom in atom.GetNeighbors():
-                if h_atom.GetAtomicNum() == 1:  # 氢原子
+                if h_atom.GetAtomicNum() == 1:  # Hydrogen atom
                     h_index = h_atom.GetIdx()
     # print(o_index, h_index)
-    # 创建一个可编辑的分子
+    # Create an editable molecule
     emol = Chem.EditableMol(mol)
-    # 然后再删除羟基氧原子和氢原子
+    # Then remove the hydroxyl oxygen and hydrogen atoms
     emol.RemoveAtom(h_index) if h_index else 1
     emol.RemoveAtom(o_index) if o_index else 1
     emol.AddBond(c_index, n_index, order=Chem.rdchem.BondType.SINGLE)
-    # 获取修改后的分子
+    # Get the modified molecule
     mol = emol.GetMol()
     return mol
 
@@ -192,23 +192,23 @@ def detect_backbone(mol):
 
     """
 
-    # 识别骨架并将骨架分子编号为0至N，其他侧链分子编号大于N
+    # Identify the backbone and number backbone atoms 0..N; side-chain atom indices are larger than N
     # renumber the backbone atoms so the sequence order is correct:
-    # N端乙酰化和C端酰胺化: https://zhuanlan.zhihu.com/p/540769025
-    # 肽链一般从N端读到C端,C端一般保留一个COOH,因此C端为HO-C(=O),中间一个C,然后加一个肽键NC(=O),后续就都是C和肽键，一直到N端
-    # 正反识别都可以，反向就是OC(=O)CNC(=O)CNC(=O)CN...,如果C端酰胺化,则为NC(=O)CNC(=O)CNC(=O)CN...
-    # N端不管有没有乙酰化,都会保留N,无乙酰化为-NH2,有乙酰化为-NC(=O)CH3;
+    # N-terminal acetylation and C-terminal amidation: https://zhuanlan.zhihu.com/p/540769025
+    # Peptide chains are read from the N-terminus to the C-terminus; the C-terminus usually keeps a COOH (HO-C(=O)), followed by one C and then peptide bonds NC(=O) all the way to the N-terminus
+    # Both forward and reverse recognition work; reversed it is OC(=O)CNC(=O)CNC(=O)CN..., or NC(=O)CNC(=O)CNC(=O)CN... if the C-terminus is amidated
+    # The N-terminus always keeps N: -NH2 without acetylation, -NC(=O)CH3 with acetylation;
     bbsmiles = "C(=O)CN" * len(
-        mol.GetSubstructMatches(Chem.MolFromSmiles('NCC=O')))  # 使用GLY最小氨基酸单元识别氨基酸数量，生成骨架generate backbone SMILES
-    # backbone = mol.GetSubstructMatches(Chem.MolFromSmiles(bbsmiles))[0] 报错tuple index out of range
+        mol.GetSubstructMatches(Chem.MolFromSmiles('NCC=O')))  # Count residues with the minimal GLY unit and generate the backbone SMILES
+    # backbone = mol.GetSubstructMatches(Chem.MolFromSmiles(bbsmiles))[0] raises "tuple index out of range"
     matches = mol.GetSubstructMatches(Chem.MolFromSmiles(bbsmiles))
     backbone = ''
-    if matches:  # 检查是否有匹配结果
+    if matches:  # Check whether there are matches
         backbone = matches[0]
-        # 其他操作
+        # Other operations
     else:
         print("No matches found.")
-        return backbone, None # 如果找不到肽键，或者数量不同则退出，比如存在两个线性肽链通过两个链接形成环的情况，需要逐一搜索；
+        return backbone, None # Exit if no peptide bonds are found or the counts differ, e.g., two linear chains cyclized via two links must be searched one by one;
     backbone_idx = list(backbone)
     backbone_idx.reverse()
     return backbone, backbone_idx

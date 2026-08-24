@@ -5,9 +5,9 @@ from rdkit.Chem import AllChem, Descriptors, rdMolDescriptors, Lipinski, rdFinge
 from rdkit.Chem.rdMolDescriptors import CalcTPSA
 
 logger = RDLogger.logger()
-logger.setLevel(RDLogger.CRITICAL)  # 只显示 CRITICAL 级别的日志
+logger.setLevel(RDLogger.CRITICAL)  # Only show CRITICAL-level log messages
 
-################## 化学性质 ##################
+################## Chemical Properties ##################
 def chemial_physical_properties_from_smiles(smiles):
     """
     Calculate the cyclopeptide chemical property from SMILES.
@@ -57,7 +57,7 @@ def cal_chemial_physical_properties(mol):
         'Exact_Mass': Descriptors.ExactMolWt(mol),
         'Topological_Polar_Surface_Area': CalcTPSA(mol),
         'Complexity': Descriptors.FpDensityMorgan1(mol),
-        'Crippen_LogP': Descriptors.MolLogP(mol),  # 计算LogP Crippen
+        'Crippen_LogP': Descriptors.MolLogP(mol),  # Crippen LogP
         'Heavy_Atom_Count': Lipinski.HeavyAtomCount(mol),
         'Hydrogen_Bond_Donor_Count': Lipinski.NumHDonors(mol),
         'Hydrogen_Bond_Acceptor_Count': Lipinski.NumHAcceptors(mol),
@@ -91,17 +91,17 @@ def cal_rules(properties):
 
      """
     
-    # Lipinski 规则五
+    # Lipinski's rule of five
     lipinski_rule_of_five = properties['Hydrogen_Bond_Donor_Count'] <= 5 and \
                             properties['Hydrogen_Bond_Acceptor_Count'] <= 10 and \
                             properties['Exact_Mass'] <= 500 and \
                             properties['Crippen_LogP'] <= 5
 
-    # Veber 规则
+    # Veber's rule
     vebers_rule = properties['Topological_Polar_Surface_Area'] <= 140 and \
                   properties['Rotatable_Bond_Count'] <= 10
 
-    # 检查 Ghose Filter 条件
+    # Check the Ghose filter conditions
     ghose_filter = 160 <= properties['Exact_Mass'] <= 480 and \
                    0.4 <= properties['Crippen_LogP'] <= 5.6 and \
                    20 <= properties['Number_of_Atoms'] <= 70
@@ -112,7 +112,7 @@ def cal_rules(properties):
     return properties
 
 
-################## 分子指纹 ##################
+################## Molecular Fingerprints ##################
 
 def cal_RDKit_fingerprint(mol):
     """
@@ -126,7 +126,7 @@ def cal_RDKit_fingerprint(mol):
     This function takes a molecule object (`mol`) and uses the `RDKFingerprint` function to create an RDKit fingerprint. Then, it converts this fingerprint into a bit string using the `ToBitString` method. The resulting bit vector is then returned, which can be used for various purposes such as similarity calculations or molecule identification in cheminformatics applications.
     """
 
-    # 生成RDKit指纹
+    # Generate the RDKit fingerprint
     fp = RDKFingerprint(mol)
     bit_vector = fp.ToBitString()
     return bit_vector
@@ -142,7 +142,7 @@ def cal_daylight_like_fingerprint(mol):
     bit_vector: STR type, a Bit string representation of a molecule's topological fingerprint.
     """
 
-    # 生成拓扑指纹
+    # Generate the topological fingerprint
     fp = rdFingerprintGenerator.GetFPs([mol])
     bit_vector = fp[0].ToBitString()
     return bit_vector
@@ -163,7 +163,7 @@ def cal_morgan_fingerprint(mol):
     bit_vector - A string representing the Morgan fingerprint of the molecule.
     """
 
-    # 生成Morgan指纹（半径为2）
+    # Generate the Morgan fingerprint (radius=2)
     morgan_fp = AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=1024)
     bit_vector = morgan_fp.ToBitString()
     return bit_vector
@@ -182,7 +182,7 @@ def cal_MACCS_keys(mol):
     Returns:
     str: A bit string representation of the MACCS keys fingerprint for the input molecule.
     """
-    # 生成 MACCS keys 指纹
+    # Generate the MACCS keys fingerprint
     maccs_fp = MACCSkeys.GenMACCSKeys(mol)
     bit_vector = maccs_fp.ToBitString()
     return bit_vector
@@ -204,13 +204,13 @@ def calculate_amino_acid_composition(sequence):
     Finally, it iterates through the `aa_list` and for each amino acid, it counts how many times it appears in the given `sequence`. The result is a list of tuples where each tuple contains an amino acid and its count in the sequence. If an amino acid is not present in the sequence, its count will be 0.
     """
     
-    # 打开文本文件并读取内容
-    file_path = 'AminoAcids.txt'  # 替换为你的文件路径
+    # Open the text file and read its contents
+    file_path = 'AminoAcids.txt'  # Replace with your file path
     AminoAcids = []
     with open(file_path, 'r', encoding='utf-8') as file:
         """Reads the contents of the file line by line and adds it to the list"""
         for line in file:
-            """# 去除行尾的换行符，并将参数添加到列表中"""
+            """Strip the trailing newline and append the entry to the list"""
             AminoAcids.append(eval(line.strip()))
 
     aa_list = [i[0] for i in AminoAcids]

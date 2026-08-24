@@ -38,12 +38,12 @@ def sequence_to_node_edge(sequence):
 
     """
     amino_acids = sequence.split('--')
-    nodes = []  # 节点信息: [(0, 'Cys'), (1, 'Cys'), ...]
-    edges = []  # 边信息: [(0, 1), (1, 2), ...]
-    # 用于存储特殊连接信息
+    nodes = []  # Node info: [(0, 'Cys'), (1, 'Cys'), ...]
+    edges = []  # Edge info: [(0, 1), (1, 2), ...]
+    # Storage for special connection information
     special_connections = {}
     for i, amino_acid in enumerate(amino_acids):
-        # 提取氨基酸名称和特殊连接信息
+        # Extract the amino acid name and special connection info
         amino_acid_name = re.sub(r"\(\d+\)", "", amino_acid)
         # print(amino_acid_name)
         if '-' in amino_acid_name:
@@ -53,15 +53,15 @@ def sequence_to_node_edge(sequence):
                 edges.append((str(i) + '_' + str(j), i))
             amino_acid_name = items[-1]
         nodes.append((i, amino_acid_name.strip().capitalize()))
-        # 记录普通连接
+        # Record regular connections
         if i > 0:
             edges.append((i - 1, i))
-        # 处理特殊连接
+        # Handle special connections
         special_conn_ids = re.findall(r"\((\d+)\)", amino_acid)
         # print(special_conn_ids)
         for conn_id in special_conn_ids:
-            conn_id = int(conn_id) - 1  # 转换为从0开始的索引
-            # 存储特殊连接信息
+            conn_id = int(conn_id) - 1  # Convert to a zero-based index
+            # Store the special connection info
             if conn_id in special_connections:
                 edges.append((special_connections[conn_id], i))
             else:

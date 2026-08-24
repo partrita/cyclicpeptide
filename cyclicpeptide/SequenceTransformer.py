@@ -1,16 +1,16 @@
 import re
 from .setting import *
 
-# 打开文本文件并读取内容
-file_path = AminoAcids_path  # 替换为你的文件路径
+# Open the text file and read its contents
+file_path = AminoAcids_path  # Replace with your file path
 AminoAcids = []
 with open(file_path, 'r', encoding='utf-8') as file:
-    # 逐行读取文件内容并添加到列表中
+    # Read the file line by line and append each entry to the list
     for line in file:
-        # 去除行尾的换行符，并将参数添加到列表中
+        # Strip the trailing newline and append the entry to the list
         AminoAcids.append(eval(line.strip()))
 
-################## 序列格式互转 ##################
+################## Sequence Format Conversion ##################
 def read_sequence(sequence):
 
     """
@@ -40,7 +40,7 @@ def read_sequence(sequence):
         seq_format = 'Graph presentation'
         nodes, edges = read_graph_representation(sequence)
     elif ',' in sequence:
-        no_parentheses = re.sub(r'\([^)]*\)', '', sequence)  # 删除所有括号中的逗号
+        no_parentheses = re.sub(r'\([^)]*\)', '', sequence)  # Strip all parenthesized parts
         if ',' in no_parentheses:
             seq_format = 'Graph presentation'
             nodes, edges = read_graph_representation(sequence)
@@ -121,15 +121,15 @@ def read_iupac_condensed(sequence, sep='-'):
 
     """
 
-    # 0. 确认是否有盐或多条链
+    # 0. Check for salts or multiple chains
     if '.' in sequence:
         sequence = sequence.split('.')[0].strip()
-    # 1. 确认是否有cyclo[]成环信息
+    # 1. Check for cyclo[] cyclization info
     iscyclo = True if 'cyclo' in sequence else False
-    sequence = sequence.replace('cyclo', '').strip('[]')  # 移除 'cyclo' 和方括号
-    sequence = re.sub(r'\([^)]*\)', replace_hyphen, sequence)  # 替换（）中的-为～～，（）中为修饰
+    sequence = sequence.replace('cyclo', '').strip('[]')  # Remove 'cyclo' and the square brackets
+    sequence = re.sub(r'\([^)]*\)', replace_hyphen, sequence)  # Replace '-' inside parentheses with '~~' (parentheses hold modifications)
     items = sequence.split(sep)
-    # 2. 确认首尾修饰信息
+    # 2. Check terminal (head/tail) modification info
     header = ''
     tail = ''
     if items[0] in ['H', 'NH2', 'Unk']:
@@ -138,7 +138,7 @@ def read_iupac_condensed(sequence, sep='-'):
     if items[-1] in ['H', 'NH2', 'Unk']:
         tail = items[-1]
         items = items[:-1]
-    # 3. 获取氨基酸，DL-修饰添加进氨基酸，首位修饰添加进氨基酸
+    # 3. Extract amino acids; DL-/D-/L- prefixes and terminal modifications are merged into the amino acid names
     amino_acids = []
     edge_marks = []
     pred = ''
@@ -165,13 +165,13 @@ def read_iupac_condensed(sequence, sep='-'):
         amino_acids[0] = header + '-' + amino_acids[0]
     if tail:
         amino_acids[-1] = amino_acids[-1] + '-' + tail
-    # 4. 处理最后空格但有edge标签的
+    # 4. Handle an empty trailing item that carries edge labels
     if amino_acids[-1] == '' and edge_marks:
         amino_acids = amino_acids[:-1]
         edge_mark = edge_marks[-1][:]
         edge_marks = edge_marks[:-1]
         edge_marks[-1].extend(edge_mark)
-    # 5. 处理氨基酸N(1)标注
+    # 5. Handle amino acid N(1) annotations
     for i, aa in enumerate(amino_acids):
         match = re.search(r'N\((\d)\)', aa)
         if match:
@@ -180,7 +180,7 @@ def read_iupac_condensed(sequence, sep='-'):
 
     # print(amino_acids)
     # print(edge_marks)
-    # 6. edges信息处理
+    # 6. Process the edge info
     edges = []
     for i in range(1, max_edge_mark + 1):
         pair = []
@@ -289,7 +289,7 @@ def create_graph_presentation(nodes, edges):
     return (sequence + ' ' + edges_pre).strip()
 
 
-def create_one_letter_peptide(nodes):  # 忽略侧链互作
+def create_one_letter_peptide(nodes):  # Side-chain interactions are ignored
     """    
     
     :param nodes: lists of amino acids.
@@ -324,5 +324,5 @@ def replace_hyphen(match):
 
     When called with a valid match object, it accesses the entire matched string using `match.group(0)` and then replaces all hyphens within that string with tildes. This can be useful in scenarios where specific text formatting or substitution within a particular part of a larger text (as identified by the regex match) is required.
     """
-    # 替换括号内的所有 hyphen (-) 为 tilde (~)
+    # Replace all hyphens (-) inside parentheses with tildes (~)
     return match.group(0).replace('-', '~~')

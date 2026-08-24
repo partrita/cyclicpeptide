@@ -7,7 +7,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import io
 
-###############结构输出####################
+############### Structure Output ####################
 
 
 def save_mol(molblock, output_file):
@@ -62,8 +62,8 @@ def save_svg(svg, output_file):
     with open(output_file, 'w') as f:
         f.write(svg)
 
-###################图像输出#################
-def plot_smiles(smiles, output_file='output.svg', w=600, h=600, isdisplay=False):  # 默认尺寸为600x600
+################### Image Output #################
+def plot_smiles(smiles, output_file='output.svg', w=600, h=600, isdisplay=False):  # Default size is 600x600
     """
     Plot a molecule represented by its SMILES (Simplified Molecular Input Line Entry System) string and optionally save or display the resulting SVG image.
 
@@ -87,12 +87,12 @@ def plot_smiles(smiles, output_file='output.svg', w=600, h=600, isdisplay=False)
         m = Chem.MolFromSmiles(smiles)
     except:
         return ''
-    # 设置绘图选项，调整分子的大小
+    # Set drawing options to adjust the molecule size
     d2d = rdMolDraw2D.MolDraw2DSVG(w, h)
-    # 绘制分子
+    # Draw the molecule
     d2d.DrawMolecule(m)
     d2d.FinishDrawing()
-    # 显示图像
+    # Display the image
     svg = d2d.GetDrawingText()
     if output_file:
         with open(output_file, 'w') as f:
@@ -118,10 +118,10 @@ def plot_graph(G, output_file='output.pdf', dpi=60):
     """
 
     plt.figure(figsize=(6, 6), dpi=dpi)
-    pos = nx.spring_layout(G)  # 生成布局
+    pos = nx.spring_layout(G)  # Generate the layout
     nx.draw(G, pos, with_labels=False, node_color='lightblue', node_size=800)
     labels = nx.get_node_attributes(G, 'code')
-    # 调整标签位置
+    # Adjust label positions
     label_pos = {k: [v[0], v[1] + 0] for k, v in pos.items()}
     nx.draw_networkx_labels(G, label_pos, labels=labels)
     if output_file:
@@ -144,11 +144,11 @@ def graph2svg(G, output_file='outpot.svg', dpi=60):
     """
 
     plt.figure(figsize=(6, 6), dpi=dpi)
-    pos = nx.spring_layout(G)  # 生成布局
+    pos = nx.spring_layout(G)  # Generate the layout
     svg_buffer = io.StringIO()
     nx.draw(G, pos, with_labels=False, node_color='lightblue', node_size=800)
     labels = nx.get_node_attributes(G, 'code')
-    # 调整标签位置
+    # Adjust label positions
     label_pos = {k: [v[0], v[1] + 0] for k, v in pos.items()}
     nx.draw_networkx_labels(G, label_pos, labels=labels)
     plt.savefig(svg_buffer, format="svg", bbox_inches='tight')

@@ -18,48 +18,48 @@ def generate_similar_sequences(sequence, replacement_rules_file=None, Replacemen
     This function generates similar sequences to the given input sequence. 
     """
 
-    # 如果没有指定外部文件，则使用默认规则
+    # Use the default rules if no external file is specified
     if replacement_rules_file is None:
         replacement_rules = {
-            'Glu': ['Asp'],  # 酸性氨基酸
+            'Glu': ['Asp'],  # Acidic amino acids
             'Asp': ['Glu'],
-            'Lys': ['Arg', 'His'],  # 碱性氨基酸
+            'Lys': ['Arg', 'His'],  # Basic amino acids
             'Arg': ['Lys', 'His'],
             'His': ['Lys', 'Arg'],
-            'Leu': ['Ile', 'Val', 'Ala'],  # 疏水性氨基酸
+            'Leu': ['Ile', 'Val', 'Ala'],  # Hydrophobic amino acids
             'Ile': ['Leu', 'Val', 'Ala'],
             'Val': ['Leu', 'Ile', 'Ala'],
             'Ala': ['Leu', 'Ile', 'Val'],
-            'Phe': ['Tyr', 'Trp'],  # 芳香性氨基酸
+            'Phe': ['Tyr', 'Trp'],  # Aromatic amino acids
             'Tyr': ['Phe', 'Trp'],
             'Trp': ['Phe', 'Tyr'],
-            'Ser': ['Thr'],  # 极性氨基酸
+            'Ser': ['Thr'],  # Polar amino acids
             'Thr': ['Ser'],
-            'Gly': ['Ala'],  # 小体积氨基酸
-            'Cys': ['Ser'],  # 特殊功能基团（极性替换）
-            'Met': ['Leu', 'Ile'],  # 疏水/非极性氨基酸
-            'Asn': ['Gln'],  # 带酰胺基的极性氨基酸
+            'Gly': ['Ala'],  # Small-volume amino acids
+            'Cys': ['Ser'],  # Special functional group (polar replacement)
+            'Met': ['Leu', 'Ile'],  # Hydrophobic/non-polar amino acids
+            'Asn': ['Gln'],  # Polar amino acids with an amide group
             'Gln': ['Asn'],
         }
     else:
         replacement_rules = read_replacement_rules_from_file(replacement_rules_file)
     total_aa_count = len(sequence.split('--'))
-    # 如果没有指定最大替换数量，则设置为总氨基酸数的三分之一
+    # If no maximum number of replacements is given, use one-third of the total residue count
     if Replacement_ratio is None:
         max_replacements = total_aa_count // 3
     else:
         max_replacements = total_aa_count * Replacement_ratio
 
-    # 使用正则表达式匹配氨基酸和其修饰部分（这里暂不处理修饰部分的特殊逻辑）
+    # Match amino acids and their modifications with regex (modification-specific logic is not handled here yet)
     fragments = sequence.split('--')
     all_combinations = []
 
-    # 遍历每一个片段，生成替换选项
+    # Iterate over each fragment to build its replacement options
     for fragment in fragments:
         aa = fragment
         options = []
         if aa in replacement_rules and replacement_rules[aa]:
-            # 随机替换的情况，包括不替换和替换的选项
+            # Options include keeping the original or replacing it
             options.append(aa)
             for replacement in replacement_rules[aa]:
                 options.append(replacement)
@@ -68,7 +68,7 @@ def generate_similar_sequences(sequence, replacement_rules_file=None, Replacemen
 
         all_combinations.append(options)
 
-    # 生成所有可能的替换组合
+    # Generate all possible replacement combinations
     possible_sequences = []
     for combo in itertools.product(*all_combinations):
         replacements_count = sum(1 for i in range(len(fragments)) if combo[i]!= fragments[i])
@@ -118,6 +118,6 @@ def save_sequences_to_csv(sequences, filename):
 
     with open(filename, mode='w', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow(['Sequence'])  # 写入标题
+        writer.writerow(['Sequence'])  # Write the header row
         for sequence in sequences:
             writer.writerow([sequence])
