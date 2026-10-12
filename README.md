@@ -30,16 +30,16 @@ Requires Python >=3.9,<3.12.
 
 ## Modules
 
-| Module | Description |
-|--------|-------------|
-| `PropertyAnalysis` | Chemical/physical properties, drug-likeness rules, molecular fingerprints |
-| `SequenceTransformer` | Sequence format detection and interconversion |
-| `Sequence2Structure` | Build peptide molecules (mol objects) from sequences |
-| `Structure2Sequence` | Identify amino acid units in a structure and derive sequence(s) |
-| `StructureTransformer` | Structure format interconversion and 3D conformation handling |
-| `GraphAlignment` | Graph-based cyclic peptide alignment and similarity |
-| `SequenceGeneration` | Generate similar sequences by residue substitution rules |
-| `IOManager` | Save/plot molecules and graphs (SVG, PDF, MOL, PDB) |
+| Module                 | Description                                                               |
+| ---------------------- | ------------------------------------------------------------------------- |
+| `PropertyAnalysis`     | Chemical/physical properties, drug-likeness rules, molecular fingerprints |
+| `SequenceTransformer`  | Sequence format detection and interconversion                             |
+| `Sequence2Structure`   | Build peptide molecules (mol objects) from sequences                      |
+| `Structure2Sequence`   | Identify amino acid units in a structure and derive sequence(s)           |
+| `StructureTransformer` | Structure format interconversion and 3D conformation handling             |
+| `GraphAlignment`       | Graph-based cyclic peptide alignment and similarity                       |
+| `SequenceGeneration`   | Generate similar sequences by residue substitution rules                  |
+| `IOManager`            | Save/plot molecules and graphs (SVG, PDF, MOL, PDB)                       |
 
 ### PropertyAnalysis
 
@@ -57,7 +57,7 @@ Amino acid composition of a chain can be obtained with `calculate_amino_acid_com
 
 ### SequenceTransformer
 
-`read_sequence` auto-detects the input notation and returns `(seq_format, nodes, edges)`; supported formats are *graph presentation*, *IUPAC condensed*, *amino acid chain*, and *one-letter code*. `create_sequence` converts nodes/edges back into all formats at once.
+`read_sequence` auto-detects the input notation and returns `(seq_format, nodes, edges)`; supported formats are _graph presentation_, _IUPAC condensed_, _amino acid chain_, and _one-letter code_. `create_sequence` converts nodes/edges back into all formats at once.
 
 ```python
 from cyclicpeptide import SequenceTransformer as st
@@ -155,13 +155,13 @@ io_m.graph2svg(G, output_file='graph.svg')                          # networkx g
 
 ## Data Files (`states/`)
 
-| File | Content |
-|------|---------|
-| `AminoAcids.txt` | Amino acid reference tuples (name, one-letter code, ...) |
-| `aas.txt` | Essential amino acid names (order matters for substructure matching) |
-| `aa_smiles.txt` | `NAME:SMILES` mapping for essential amino acids |
-| `monomer.tsv` | Default monomer reference library (code, SMILES, weight, symbol, flags) |
-| `Chemical_P.csv` | Property name/description table used in the documentation |
+| File             | Content                                                                 |
+| ---------------- | ----------------------------------------------------------------------- |
+| `AminoAcids.txt` | Amino acid reference tuples (name, one-letter code, ...)                |
+| `aas.txt`        | Essential amino acid names (order matters for substructure matching)    |
+| `aa_smiles.txt`  | `NAME:SMILES` mapping for essential amino acids                         |
+| `monomer.tsv`    | Default monomer reference library (code, SMILES, weight, symbol, flags) |
+| `Chemical_P.csv` | Property name/description table used in the documentation               |
 
 ## Graph Similarity Model (`GCN/`)
 

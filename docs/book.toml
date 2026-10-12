@@ -1,0 +1,9 @@
+[book]
+authors = ["dfwlab"]
+language = "en"
+src = "src"
+title = "cyclicpeptide"
+
+[output.html]
+git-repository-url = "https://github.com/partrita/cyclicpeptide"
+edit-url-template = "https://github.com/partrita/cyclicpeptide/edit/main/docs/{path}"

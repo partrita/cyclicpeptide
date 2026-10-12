@@ -32,7 +32,7 @@ def seq2stru_essentialAA(sequence, cyclic=True):
 
         smiles, peptide = sequence2structure.seq2stru_essentialAA(sequence='APG', cyclic=False)
         print('SMILES:', smiles)
-        basic.plot_molecule(peptide, w=300, h=300, isdisplay=True)
+        IOManager.plot_smiles(smiles, w=300, h=300, isdisplay=True)
 
     SMILES: C[C@H](N)C(=O)N1CCC[C@H]1C(=O)NCC(=O)O
     
@@ -42,13 +42,13 @@ def seq2stru_essentialAA(sequence, cyclic=True):
         :scale: 50%
 
 
-    :py:func:`basic.plot_molecule` function is used to output the resulting structure, or you can use :py:func:`basic.plot_smiles` .
+    :py:func:`IOManager.plot_smiles` function is used to output the resulting structure.
 
     Example2::
 
         smiles, peptide = sequence2structure.seq2stru_essentialAA(sequence='APG', cyclic=True)
         print('SMILES:', smiles)
-        basic.plot_smiles(smiles, w=300, h=300, isdisplay=True)
+        IOManager.plot_smiles(smiles, w=300, h=300, isdisplay=True)
         
     SMILES: C[C@H](N)C(=O)N1CCC[C@H]1C(=O)NCC(=O)O
 
@@ -87,7 +87,7 @@ def seq2stru_no_essentialAA(sequence, references, cyclic=True):
         sequence = 'Aad--NMe-Ala--4OH-Thr--3Me-Pro'
         smiles, peptide = sequence2structure.seq2stru_no_essentialAA(sequence, references, cyclic=True)
         print(smiles)
-        basic.plot_molecule(peptide, w=300, h=300, isdisplay=True)
+        IOManager.plot_smiles(smiles, w=300, h=300, isdisplay=True)
 
     SMILES : CC1CCN2C(=O)C(C(O)CO)NC(=O)C(C)N(C)C(=O)C(CCCC(=O)O)NC(=O)C12
 

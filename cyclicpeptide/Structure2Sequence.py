@@ -196,11 +196,11 @@ def highlight_atom(m, atoms, transparency=1, isdisplay=True):
     """
     Highlight amino acid residues in cyclic peptides with different colors.
 
-    * :py:func:`basic.detect_backbone` and :py:func:`order_backbone` function should be used before the use of cyclic peptide molecules for Identify peptide backbone and renumber atoms.
+    * :py:func:`Structure2Sequence.detect_backbone` and :py:func:`order_backbone` function should be used before the use of cyclic peptide molecules for Identify peptide backbone and renumber atoms.
 
     Example::
 
-        backbone_idx = basic.detect_backbone(m)
+        backbone_idx = Structure2Sequence.detect_backbone(m)
         m, backbone_idx = structure2sequence.order_backbone(m, backbone_idx)
         _ = structure2sequence.highlight_atom(m, [backbone_idx])
 
