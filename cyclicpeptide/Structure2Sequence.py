@@ -360,22 +360,28 @@ def reference_aa_monomer(monomers_path):
     for i in temp.index:
         smile = temp.loc[i, 'Smiles']
         code = temp.loc[i, 'Code']
-        weight = float(temp.loc[i, 'Weight'])
         symbol = temp.loc[i, 'Symbol']
-        symbol = code if symbol.strip() == '' or str(symbol).upper().strip() == 'NAN' else symbol
-        aa = Chem.MolFromSmiles(smile)
-        num_atoms = aa.GetNumAtoms()
-        essentials[code] = [aa, symbol, num_atoms]
-    temp = monomers.loc[(monomers['Essential amino acids'] != 1) & monomers['Error'] != 1, :]
+        symbol = code if str(symbol).strip() == '' or str(symbol).upper().strip() == 'NAN' else symbol
+        try:
+            aa = Chem.MolFromSmiles(smile)
+            if aa:
+                num_atoms = aa.GetNumAtoms()
+                essentials[code] = [aa, symbol, num_atoms]
+        except:
+            pass
+    temp = monomers.loc[(monomers['Essential amino acids'] != 1) & (monomers['Error'] != 1), :]
     for i in temp.index:
         smile = temp.loc[i, 'Smiles']
         code = temp.loc[i, 'Code']
-        weight = float(temp.loc[i, 'Weight'])
         symbol = temp.loc[i, 'Symbol']
         symbol = code if str(symbol).strip() == '' or str(symbol).upper().strip() == 'NAN' else symbol
-        aa = Chem.MolFromSmiles(smile)
-        num_atoms = aa.GetNumAtoms()
-        others[code] = [aa, symbol, num_atoms]
+        try:
+            aa = Chem.MolFromSmiles(smile)
+            if aa:
+                num_atoms = aa.GetNumAtoms()
+                others[code] = [aa, symbol, num_atoms]
+        except:
+            pass
     return essentials, others
 
 
@@ -474,15 +480,19 @@ def aa_matching(query_aas, atom_mappings, connected_pairs, ref_essentials, ref_o
     for aa_i in range(len(query_aas)):
         aa = query_aas[aa_i]
         aa_num_atoms = aa.GetNumAtoms()
+        aa_smi = Chem.MolToSmiles(aa, canonical=True)
+        found_exact = False
         for ref_code, [ref, ref_symbol, ref_num_atoms] in ref_essentials.items():
             if aa_num_atoms != ref_num_atoms:
                 continue
-            match_idx = aa.GetSubstructMatches(ref)
-            if match_idx and len(match_idx[0]) == aa_num_atoms:
-                # Result: [code, query AA atom count, is essential, matched atom count, matched atom idxs, matched atom idxs in the original molecule, exact match flag]
-                result.append([[ref_code, aa_num_atoms, True, len(match_idx[0]), match_idx[0], [], True]])
-                break
-        else:
+            ref_smi = Chem.MolToSmiles(ref, canonical=True)
+            if aa_smi == ref_smi:
+                match_idx = aa.GetSubstructMatches(ref)
+                if match_idx:
+                    result.append([[ref_code, aa_num_atoms, True, len(match_idx[0]), match_idx[0], [], True]])
+                    found_exact = True
+                    break
+        if not found_exact:
             refs = {**ref_essentials, **ref_others}
             refs = {key: value for key, value in refs.items() if value[2] <= aa_num_atoms}
             match_codes = []
@@ -490,8 +500,12 @@ def aa_matching(query_aas, atom_mappings, connected_pairs, ref_essentials, ref_o
                 match_idx = aa.GetSubstructMatches(ref)
                 if match_idx:
                     match_idx = sorted(match_idx, key=lambda x: len(x), reverse=True)[0]
-                    match_codes.append([ref_code, aa_num_atoms, False, len(match_idx), match_idx, [],
-                                        True if aa_num_atoms == len(match_idx) else False, False])
+                    ref_smi = Chem.MolToSmiles(ref, canonical=True)
+                    is_exact = (aa_smi == ref_smi)
+                    is_ess = (ref_code in ref_essentials)
+                    match_codes.append([ref_code, aa_num_atoms, is_ess, len(match_idx), match_idx, [],
+                                        is_exact, False])
+            match_codes.sort(key=lambda x: (x[6], x[3]), reverse=True)
             result.append(match_codes)
     # Remove stereoisomer duplicates, e.g., when both Cys and D-Cys match, drop D-Cys and keep Cys; also determine the atom mappings
     for res_i in range(len(result)):
@@ -574,7 +588,14 @@ def sequence_str(chain, connected_pairs):
     This function first extracts the first elements of each tuple in the `chain` list to create an initial sequence list (`seq`). Then, it iterates through the `connected_pairs` list. If the connection type (`t`) is 'side chain' or the absolute difference between the two indices (`i` and `j`) is not 1, it adds parentheses and a link index to the corresponding elements in the `seq` list. Finally, it joins all the elements in the `seq` list with '--' to form the final sequence string.
     """
 
-    seq = [i[0] for i in chain]
+    seq = []
+    for i in chain:
+        code = str(i[0])
+        is_ess = i[2] if len(i) > 2 else False
+        if (not is_ess or '-' in code) and not (code.startswith('[') and code.endswith(']')):
+            seq.append(f"[{code}]")
+        else:
+            seq.append(code)
     link_idx = 1
     for i, j, t in connected_pairs:
         if t == 'side chain' or abs(i - j) != 1:
@@ -840,8 +861,11 @@ def transform(smiles, monomers_path):
     #    return report + sub_report + report_footer
     # Write the HTML content to a file
     output_file = "output.html"
-    with open(output_file, "w") as f:
-        f.write(report + report_footer)
+    try:
+        with open(output_file, "w") as f:
+            f.write(report + report_footer)
+    except Exception:
+        pass
     return report + report_footer
 
 

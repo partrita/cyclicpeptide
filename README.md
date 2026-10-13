@@ -1,6 +1,13 @@
 # cyclicpeptide: A Python Package for Cyclic Peptide Drug Design
 
-Detailed documentation for cyclicpeptide is available at https://dfwlab.github.io/cyclicpeptide/.
+Detailed documentation for cyclicpeptide is available at https://partrita.github.io/cyclicpeptide/.
+
+## todo
+
+- [x] Support non-canonical amino acid
+- [x] Support N-methylation of peptide bonds
+- [x] Support other chemical moiety
+
 
 ## Overview
 
@@ -71,17 +78,25 @@ seq_list = st.create_sequence(nodes, edges)
 
 ### Sequence2Structure
 
-Build peptide mol objects from sequences. Essential-amino-acid sequences accept one-letter codes or three-letter chains; non-essential residues are assembled from a monomer reference library (`states/monomer.tsv`).
+Build peptide mol objects from sequences. Supports essential amino acids, non-canonical amino acids in brackets, N-methylated residues, terminal capping groups, and custom chemical moieties via the unified `seq2stru` function (or legacy `seq2stru_essentialAA` / `seq2stru_no_essentialAA`).
 
 ```python
 from cyclicpeptide import Sequence2Structure as s2s
 from cyclicpeptide import IOManager
 
-smiles, peptide = s2s.seq2stru_essentialAA('Ala-Ala-Cys-Asp', cyclic=True)
+# 1. Essential cyclic peptide
+smiles, peptide = s2s.seq2stru('Ala-Ala-Cys-Asp', cyclic=True)
 IOManager.plot_smiles(smiles, w=300, h=300, isdisplay=True)
 
-references = s2s.reference_aa_monomer(None)  # default monomer library
-smiles, peptide = s2s.seq2stru_no_essentialAA('Aad--NMe-Ala--4OH-Thr--3Me-Pro', references, cyclic=True)
+# 2. Peptide with non-canonical amino acids and N-methylation
+smiles, peptide = s2s.seq2stru('cyclo[Ala-[NMe-Ala]-[4OH-Thr]-Pro]')
+
+# 3. Peptide with terminal capping groups ([Ac], [NH2]) or lipid tail
+smiles, peptide = s2s.seq2stru('[Ac]-Ala-[NMe-Ala]-Gly-[NH2]', cyclic=False)
+smiles, peptide = s2s.seq2stru('[Oct]-Ala-Gly', cyclic=False)
+
+# 4. Custom chemical moiety via inline SMILES
+smiles, peptide = s2s.seq2stru('[smiles:CCCCCCCC(=O)O]-Ala-Gly', cyclic=False)
 ```
 
 ### Structure2Sequence

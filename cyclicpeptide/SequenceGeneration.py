@@ -97,7 +97,7 @@ def read_replacement_rules_from_file(file_path):
             line = line.strip()
             if line:
                 key, values_str = line.split(':')
-                values = [value.strip() for value in values_str.strip('[]').spanplit(',')]
+                values = [value.strip() for value in values_str.strip('[]').split(',')]
                 replacement_rules[key.strip()] = values
     return replacement_rules
 

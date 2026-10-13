@@ -56,6 +56,9 @@ def read_sequence(sequence):
             nodes, edges = read_iupac_condensed(sequence, sep='-')
         except:
             nodes, edges = '', ''
+    elif '[' in sequence and ']' in sequence:
+        seq_format = 'IUPAC condensed'
+        nodes, edges = read_iupac_condensed(sequence, sep='-')
     else:
         seq_format = 'One letter peptide'
         nodes, edges = read_one_letter_sequence(sequence)
@@ -125,17 +128,27 @@ def read_iupac_condensed(sequence, sep='-'):
     if '.' in sequence:
         sequence = sequence.split('.')[0].strip()
     # 1. Check for cyclo[] cyclization info
-    iscyclo = True if 'cyclo' in sequence else False
-    sequence = sequence.replace('cyclo', '').strip('[]')  # Remove 'cyclo' and the square brackets
-    sequence = re.sub(r'\([^)]*\)', replace_hyphen, sequence)  # Replace '-' inside parentheses with '~~' (parentheses hold modifications)
+    iscyclo = False
+    if sequence.startswith('cyclo['):
+        iscyclo = True
+        sequence = sequence[5:]
+        if sequence.startswith('[') and sequence.endswith(']'):
+            sequence = sequence[1:-1]
+    elif 'cyclo' in sequence:
+        iscyclo = True
+        sequence = sequence.replace('cyclo', '')
+        if sequence.startswith('[') and sequence.endswith(']'):
+            sequence = sequence[1:-1]
+    sequence = re.sub(r'\([^)]*\)', replace_hyphen, sequence)  # Replace '-' inside parentheses with '~~'
+    sequence = re.sub(r'\[[^\]]*\]', replace_hyphen, sequence)  # Replace '-' inside square brackets with '~~'
     items = sequence.split(sep)
     # 2. Check terminal (head/tail) modification info
     header = ''
     tail = ''
-    if items[0] in ['H', 'NH2', 'Unk']:
+    if items and items[0] in ['H', 'Unk']:
         header = items[0]
         items = items[1:]
-    if items[-1] in ['H', 'NH2', 'Unk']:
+    if items and items[-1] in ['H', 'Unk']:
         tail = items[-1]
         items = items[:-1]
     # 3. Extract amino acids; DL-/D-/L- prefixes and terminal modifications are merged into the amino acid names
@@ -240,7 +253,12 @@ def create_iupac_condensed(nodes, edges):
     """
     edge_marker = 1
     cyclo = False
-    amino_acids = nodes[:]
+    amino_acids = []
+    for node in nodes:
+        if ('-' in node or ':' in node) and not (node.startswith('[') and node.endswith(']')):
+            amino_acids.append(f'[{node}]')
+        else:
+            amino_acids.append(node)
     for i, j in edges:
         if min(i, j) == 0 and max(i, j) == len(amino_acids) - 1:
             cyclo = True

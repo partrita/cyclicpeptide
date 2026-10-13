@@ -23,64 +23,137 @@ from rdkit.Chem.Draw import rdMolDraw2D
 import re
 from .setting import *
 
-def seq2stru_essentialAA(sequence, cyclic=True):
-
+def seq2stru(sequence, cyclic=True, monomers_path=None):
     """
-    ``"cyclic"`` controls whether it is looped, and when ``"cyclic = True"``, it generates a looped structure, otherwise a chain.
+    Unified Sequence-to-Structure function.
+    Converts any cyclic or linear peptide sequence into SMILES and an RDKit Mol object.
     
-    Exmaple1::
-
-        smiles, peptide = sequence2structure.seq2stru_essentialAA(sequence='APG', cyclic=False)
-        print('SMILES:', smiles)
-        IOManager.plot_smiles(smiles, w=300, h=300, isdisplay=True)
-
-    SMILES: C[C@H](N)C(=O)N1CCC[C@H]1C(=O)NCC(=O)O
+    Supports:
+      - Essential amino acids (1-letter e.g. 'APG' or 3-letter e.g. 'Ala-Pro-Gly')
+      - Non-canonical amino acids in brackets (e.g. '[NMe-Ala]', '[4OH-Thr]', '[Aad]', '[3Me-Pro]')
+      - N-methylation of peptide bonds
+      - Other chemical moieties:
+          - Terminal capping groups: '[Ac]' / 'Ac' (acetyl), '[NH2]' / 'NH2' (amidation), '[Oct]' (lipid tail)
+          - Inline SMILES: '[smiles:CCCCCCCC(=O)O]'
+      - Both cyclic (cyclic=True or 'cyclo[...]' prefix) and linear peptides.
+      
+    Example::
     
-    .. image:: s2s.png
-        :alt: Description of the image
-        :align: center
-        :scale: 50%
-
-
-    :py:func:`IOManager.plot_smiles` function is used to output the resulting structure.
-
-    Example2::
-
-        smiles, peptide = sequence2structure.seq2stru_essentialAA(sequence='APG', cyclic=True)
-        print('SMILES:', smiles)
-        IOManager.plot_smiles(smiles, w=300, h=300, isdisplay=True)
-        
-    SMILES: C[C@H](N)C(=O)N1CCC[C@H]1C(=O)NCC(=O)O
-
-    .. image:: s2s.png
-        :alt: Description of the image
-        :align: center
-        :scale: 50%
-
-    Enter a sequence in 'Ala-Ala-Cys-Asp' format that will be converted to a single-letter structure by the :py:func:`code2symbol` function.
-
-    Example3::
-
-        smiles, peptide = sequence2structure.seq2stru_essentialAA(sequence='Ala-Ala-Cys-Asp', cyclic=True)
-        print('SMILES:', smiles)
-        
-    SMILES: C[C@@H]1NC(=O)[C@H](C)NC(=O)[C@H](CC(=O)O)NC(=O)[C@H](CS)NC1=O
-
+        smiles, mol = Sequence2Structure.seq2stru('cyclo[Ala-[NMe-Ala]-[4OH-Thr]-Pro]')
+        print(smiles)
     """
     try:
+        s = sequence.strip()
+        is_cyclo = False
+        if s.startswith("cyclo[") and s.endswith("]"):
+            is_cyclo = True
+            s = s[6:-1]
+        elif "cyclo" in s:
+            is_cyclo = True
+            s = s.replace("cyclo", "").strip("[]")
+        cyclic = cyclic or is_cyclo
+        s = re.sub(r"\(\d+\)", "", s)
+        
+        tokens = []
+        if "--" in s:
+            tokens = [t.strip() for t in s.split("--") if t.strip()]
+        elif "[" in s or "-" in s:
+            s_masked = re.sub(r"\[[^\]]*\]", lambda m: m.group(0).replace("-", "~~"), s)
+            for part in s_masked.split("-"):
+                part = part.replace("~~", "-").strip()
+                if part:
+                    tokens.append(part)
+        elif len(s) > 0:
+            if all(c.isalpha() and c.isupper() for c in s):
+                tokens = list(s)
+            else:
+                tokens = [s]
+                
+        if monomers_path:
+            monomers = pd.read_csv(monomers_path, sep="\t", index_col=0)
+        else:
+            monomers = pd.read_csv(monomer_path, sep="\t", index_col=0)
+        if "Error" in monomers.columns:
+            monomers = monomers.loc[monomers["Error"] != 1, :]
+            
+        capping_dict = {
+            "AC": "CC(=O)O",
+            "NAC": "CC(=O)O",
+            "ACETYL": "CC(=O)O",
+            "NH2": "N",
+            "AMIDE": "N",
+            "OCT": "CCCCCCCC(=O)O",
+            "PAM": "CCCCCCCCCCCCCCCC(=O)O",
+        }
+        
+        one_to_three = {}
+        try:
+            with open(AminoAcids_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    item = eval(line.strip())
+                    one_to_three[item[0].upper()] = item[1]
+        except:
+            pass
+            
+        monomer_dict = {}
+        for _, row in monomers.iterrows():
+            c = str(row["Code"]).strip().upper()
+            smi_str = str(row["Smiles"]).strip()
+            if c and smi_str:
+                monomer_dict[c] = smi_str
+            n = str(row["Name"]).strip().upper()
+            if n and smi_str and n not in monomer_dict:
+                monomer_dict[n] = smi_str
+                
+        def _resolve(token):
+            clean = token.strip()
+            if clean.startswith("[") and clean.endswith("]"):
+                clean = clean[1:-1].strip()
+            if clean.lower().startswith("smiles:"):
+                return Chem.MolFromSmiles(clean[7:].strip())
+            up = clean.upper()
+            if up in capping_dict:
+                return Chem.MolFromSmiles(capping_dict[up])
+            if len(clean) == 1 and up in one_to_three:
+                clean = one_to_three[up]
+                up = clean.upper()
+            if up in monomer_dict:
+                return Chem.MolFromSmiles(monomer_dict[up])
+            return None
+            
+        mols = [_resolve(t) for t in tokens]
+        if None in mols:
+            return None, None
+            
+        p = build_peptide_from_mols(mols, cyclic=cyclic)
+        if p is None:
+            return None, None
+        p = Chem.RemoveHs(p)
+        Chem.AssignAtomChiralTagsFromStructure(p)
+        smiles = Chem.MolToSmiles(p, canonical=True)
+        return smiles, p
+    except:
+        return None, None
+
+
+def seq2stru_essentialAA(sequence, cyclic=True):
+    try:
+        smi, mol = seq2stru(sequence, cyclic=cyclic)
+        if smi is not None:
+            return smi, mol
         if '-' in sequence:
             sequence = [code2symbol(code)[0] for code in sequence.split('-')]
             sequence = ''.join(sequence)
         peptide = create_peptide_of_essentialAA(sequence, cyclic=cyclic)
-        peptide = Chem.RemoveHs(peptide)  # Remove all hydrogen atoms
-        Chem.AssignAtomChiralTagsFromStructure(peptide)  # Reassign chiral tags from the structure
+        peptide = Chem.RemoveHs(peptide)
+        Chem.AssignAtomChiralTagsFromStructure(peptide)
         smiles = Chem.MolToSmiles(peptide, canonical=True)
         return smiles, peptide
     except:
         return None, None
 
 
-def seq2stru_no_essentialAA(sequence, references, cyclic=True):
+def seq2stru_no_essentialAA(sequence, references=None, cyclic=True):
     """
     Example::
 
@@ -90,20 +163,19 @@ def seq2stru_no_essentialAA(sequence, references, cyclic=True):
         IOManager.plot_smiles(smiles, w=300, h=300, isdisplay=True)
 
     SMILES : CC1CCN2C(=O)C(C(O)CO)NC(=O)C(C)N(C)C(=O)C(CCCC(=O)O)NC(=O)C12
-
-    .. image:: ns2s.png
-        :alt: Description of the image
-        :align: center
-        :scale: 50%
-
     """
     try:
-        sequence = [i.strip() for i in re.sub(r'\(\d+\)', '', sequence).split('--')]
-        peptide = create_peptide_of_no_essentialAA(sequence, references, cyclic=cyclic)
+        smi, mol = seq2stru(sequence, cyclic=cyclic)
+        if smi is not None:
+            return smi, mol
+        if references is None:
+            references = reference_aa_monomer(None)
+        seq_tokens = [i.strip() for i in re.sub(r'\(\d+\)', '', sequence).split('--')]
+        peptide = create_peptide_of_no_essentialAA(seq_tokens, references, cyclic=cyclic)
         smiles = Chem.MolToSmiles(peptide, canonical=True)
         try:
-            peptide = Chem.RemoveHs(peptide)  # Remove all hydrogen atoms
-            Chem.AssignAtomChiralTagsFromStructure(peptide)  # Reassign chiral tags from the structure
+            peptide = Chem.RemoveHs(peptide)
+            Chem.AssignAtomChiralTagsFromStructure(peptide)
             return smiles, peptide
         except:
             return smiles, peptide
@@ -135,185 +207,314 @@ def code2symbol(code):
         return None
 
 
+def find_terminals(mol):
+    """
+    Find the backbone N-terminal (amine nitrogen) and C-terminal (carboxylic acid carbon).
+    Returns (n_idx, c_idx).
+    """
+    if mol is None:
+        return None, None
+    c_patt = Chem.MolFromSmarts("[CX3](=O)[OX2H1,OX1-]")
+    c_matches = [m[0] for m in mol.GetSubstructMatches(c_patt)]
+    n_patt = Chem.MolFromSmarts("[NX3;H1,H2,H0,H3;!$(N=*);!$(N~O)]")
+    n_matches = [m[0] for m in mol.GetSubstructMatches(n_patt)]
+    
+    if not c_matches and not n_matches:
+        return None, None
+    if not c_matches:
+        return (n_matches[0] if n_matches else None, None)
+    if not n_matches:
+        return (None, c_matches[0] if c_matches else None)
+        
+    best_pair = None
+    min_dist = 999
+    for n in n_matches:
+        for c in c_matches:
+            path = Chem.GetShortestPath(mol, n, c)
+            if path and 1 < len(path) <= 4:
+                if len(path) < min_dist:
+                    min_dist = len(path)
+                    best_pair = (n, c)
+    if best_pair:
+        return best_pair
+    return (n_matches[0], c_matches[0])
+
+
+def build_peptide_from_mols(mol_list, cyclic=True):
+    """
+    Build a peptide molecule from a list of monomer Mol objects.
+    Uses atom tagging to prevent valence errors and index shifting bugs.
+    """
+    if not mol_list:
+        return None
+    tagged_mols = []
+    for i, m in enumerate(mol_list):
+        m_copy = Chem.RWMol(m)
+        n_idx, c_idx = find_terminals(m_copy)
+        for a in m_copy.GetAtoms():
+            a.SetIntProp("_res_id", i)
+        if n_idx is not None:
+            m_copy.GetAtomWithIdx(n_idx).SetIntProp("_is_n_term", 1)
+        if c_idx is not None:
+            m_copy.GetAtomWithIdx(c_idx).SetIntProp("_is_c_term", 1)
+        tagged_mols.append(m_copy)
+        
+    combined = tagged_mols[0]
+    for m in tagged_mols[1:]:
+        combined = Chem.CombineMols(combined, m)
+    combined = Chem.RWMol(combined)
+    
+    to_delete = set()
+    bonds_to_add = []
+    for i in range(len(mol_list) - 1):
+        c_atom_idx = None
+        n_atom_idx = None
+        for a in combined.GetAtoms():
+            if a.GetIntProp("_res_id") == i and a.HasProp("_is_c_term"):
+                c_atom_idx = a.GetIdx()
+            elif a.GetIntProp("_res_id") == i + 1 and a.HasProp("_is_n_term"):
+                n_atom_idx = a.GetIdx()
+                
+        if c_atom_idx is not None and n_atom_idx is not None:
+            c_atom = combined.GetAtomWithIdx(c_atom_idx)
+            for nb in c_atom.GetNeighbors():
+                if nb.GetSymbol() == "O" and combined.GetBondBetweenAtoms(c_atom_idx, nb.GetIdx()).GetBondType() == Chem.BondType.SINGLE:
+                    to_delete.add(nb.GetIdx())
+                    for h in nb.GetNeighbors():
+                        if h.GetAtomicNum() == 1:
+                            to_delete.add(h.GetIdx())
+                    break
+            bonds_to_add.append((i, i + 1, "_is_c_term", "_is_n_term"))
+            
+    if cyclic and len(mol_list) >= 2:
+        last_i = len(mol_list) - 1
+        first_i = 0
+        c_atom_idx = None
+        n_atom_idx = None
+        for a in combined.GetAtoms():
+            if a.GetIntProp("_res_id") == last_i and a.HasProp("_is_c_term"):
+                c_atom_idx = a.GetIdx()
+            elif a.GetIntProp("_res_id") == first_i and a.HasProp("_is_n_term"):
+                n_atom_idx = a.GetIdx()
+        if c_atom_idx is not None and n_atom_idx is not None:
+            c_atom = combined.GetAtomWithIdx(c_atom_idx)
+            for nb in c_atom.GetNeighbors():
+                if nb.GetSymbol() == "O" and combined.GetBondBetweenAtoms(c_atom_idx, nb.GetIdx()).GetBondType() == Chem.BondType.SINGLE:
+                    to_delete.add(nb.GetIdx())
+                    for h in nb.GetNeighbors():
+                        if h.GetAtomicNum() == 1:
+                            to_delete.add(h.GetIdx())
+                    break
+            bonds_to_add.append((last_i, first_i, "_is_c_term", "_is_n_term"))
+            
+    for idx in sorted(to_delete, reverse=True):
+        combined.RemoveAtom(idx)
+        
+    for res_from, res_to, prop_from, prop_to in bonds_to_add:
+        from_idx = None
+        to_idx = None
+        for a in combined.GetAtoms():
+            if a.GetIntProp("_res_id") == res_from and a.HasProp(prop_from):
+                from_idx = a.GetIdx()
+            elif a.GetIntProp("_res_id") == res_to and a.HasProp(prop_to):
+                to_idx = a.GetIdx()
+        if from_idx is not None and to_idx is not None:
+            if not combined.GetBondBetweenAtoms(from_idx, to_idx):
+                combined.AddBond(from_idx, to_idx, Chem.BondType.SINGLE)
+                
+    for a in combined.GetAtoms():
+        for p in ["_res_id", "_is_n_term", "_is_c_term"]:
+            if a.HasProp(p):
+                a.ClearProp(p)
+                
+    res = combined.GetMol()
+    try:
+        Chem.SanitizeMol(res)
+        Chem.AssignAtomChiralTagsFromStructure(res)
+    except:
+        pass
+    return res
+
+
 def link_aa_by_peptide_bond(mol, c_index, n_index):
     """
     Link two amino acids by a peptide bond in a given molecule.
-
-    :param mol: The molecule object representing the amino acids to be linked.
-    :type mol: Chem.Mol
-    :param c_index: The index of the carbon atom in the molecule where the peptide bond formation will start (usually the carbonyl carbon of one amino acid).
-    :type c_index: int
-    :param n_index: The index of the nitrogen atom in the molecule where the peptide bond formation will end (usually the amino nitrogen of another amino acid).
-    :type n_index: int
-    :return: The modified molecule object with the two amino acids linked by a peptide bond.
-    :rtype: Chem.Mol
-
-    This function first tries to identify the oxygen and hydrogen atoms of the hydroxyl group attached to the specified carbon atom (`c_index`). It does this by iterating through the neighbors of the carbon atom and looking for an oxygen atom with a single bond to the carbon. Then, it finds the hydrogen atom attached to that oxygen.
-
-    Next, it creates an editable version of the molecule (`emol`) using `Chem.EditableMol`. It then removes the identified hydrogen and oxygen atoms (if they were found) from the editable molecule.
-
-    Finally, it adds a single bond between the specified carbon (`c_index`) and nitrogen (`n_index`) atoms to form the peptide bond. The modified molecule is then retrieved from the editable molecule and returned.
+    Uses atom tagging to safely remove leaving OH groups without index shift corruption.
     """
+    m = Chem.RWMol(mol)
+    m.GetAtomWithIdx(c_index).SetIntProp("_target_c", 1)
+    m.GetAtomWithIdx(n_index).SetIntProp("_target_n", 1)
+    
+    to_delete = []
+    c_atom = m.GetAtomWithIdx(c_index)
+    for neighbor in c_atom.GetNeighbors():
+        if neighbor.GetSymbol() == 'O' and m.GetBondBetweenAtoms(c_index, neighbor.GetIdx()).GetBondType() == Chem.BondType.SINGLE:
+            to_delete.append(neighbor.GetIdx())
+            for h_atom in neighbor.GetNeighbors():
+                if h_atom.GetAtomicNum() == 1:
+                    to_delete.append(h_atom.GetIdx())
+            break
+            
+    for idx in sorted(set(to_delete), reverse=True):
+        m.RemoveAtom(idx)
+        
+    c_final = None
+    n_final = None
+    for atom in m.GetAtoms():
+        if atom.HasProp("_target_c"):
+            c_final = atom.GetIdx()
+        elif atom.HasProp("_target_n"):
+            n_final = atom.GetIdx()
+            
+    if c_final is not None and n_final is not None:
+        if not m.GetBondBetweenAtoms(c_final, n_final):
+            m.AddBond(c_final, n_final, order=Chem.rdchem.BondType.SINGLE)
+        m.GetAtomWithIdx(c_final).ClearProp("_target_c")
+        m.GetAtomWithIdx(n_final).ClearProp("_target_n")
+        
+    res = m.GetMol()
+    try:
+        Chem.SanitizeMol(res)
+    except:
+        pass
+    return res
 
-    o_index = None
-    h_index = None
-    # Find the oxygen and hydrogen atoms of the hydroxyl group attached to this carbon atom
-    for atom in mol.GetAtomWithIdx(c_index).GetNeighbors():
-        if atom.GetSymbol() == 'O' and mol.GetBondBetweenAtoms(atom.GetIdx(), c_index).GetBondType() == Chem.BondType.SINGLE:
-            o_index = atom.GetIdx()
-            for h_atom in atom.GetNeighbors():
-                if h_atom.GetAtomicNum() == 1:  # Hydrogen atom
-                    h_index = h_atom.GetIdx()
-    # print(o_index, h_index)
-    # Create an editable molecule
-    emol = Chem.EditableMol(mol)
-    # Then remove the hydroxyl oxygen and hydrogen atoms
-    emol.RemoveAtom(h_index) if h_index else 1
-    emol.RemoveAtom(o_index) if o_index else 1
-    emol.AddBond(c_index, n_index, order=Chem.rdchem.BondType.SINGLE)
-    # Get the modified molecule
-    mol = emol.GetMol()
-    return mol
 
 def detect_backbone(mol):
     """
     Detect the backbone of a given molecule.
-
-    :param mol: The molecule object for which the backbone is to be detected.
-    :type mol: Chem.Mol
-    :return: A tuple containing two elements:
-
-    The first element is the backbone of the molecule as a tuple of atom indices if matches are found; otherwise, an empty string.
-    The second element is a list of the backbone atom indices in reverse order if matches are found; otherwise, None.
-    
-    :rtype: tuple[str, list[int] or None]
-
-    This function aims to identify the backbone of a given molecule. 
-
     """
-
-    # Identify the backbone and number backbone atoms 0..N; side-chain atom indices are larger than N
-    # renumber the backbone atoms so the sequence order is correct:
-    # N-terminal acetylation and C-terminal amidation: https://zhuanlan.zhihu.com/p/540769025
-    # Peptide chains are read from the N-terminus to the C-terminus; the C-terminus usually keeps a COOH (HO-C(=O)), followed by one C and then peptide bonds NC(=O) all the way to the N-terminus
-    # Both forward and reverse recognition work; reversed it is OC(=O)CNC(=O)CNC(=O)CN..., or NC(=O)CNC(=O)CNC(=O)CN... if the C-terminus is amidated
-    # The N-terminus always keeps N: -NH2 without acetylation, -NC(=O)CH3 with acetylation;
     bbsmiles = "C(=O)CN" * len(
-        mol.GetSubstructMatches(Chem.MolFromSmiles('NCC=O')))  # Count residues with the minimal GLY unit and generate the backbone SMILES
-    # backbone = mol.GetSubstructMatches(Chem.MolFromSmiles(bbsmiles))[0] raises "tuple index out of range"
+        mol.GetSubstructMatches(Chem.MolFromSmiles('NCC=O')))
     matches = mol.GetSubstructMatches(Chem.MolFromSmiles(bbsmiles))
     backbone = ''
-    if matches:  # Check whether there are matches
+    if matches:
         backbone = matches[0]
-        # Other operations
     else:
-        print("No matches found.")
-        return backbone, None # Exit if no peptide bonds are found or the counts differ, e.g., two linear chains cyclized via two links must be searched one by one;
+        # Fallback to peptide bond matching
+        patt = Chem.MolFromSmarts("[CX3](=[OX1])-[NX3;!$(N=*)]")
+        pb_matches = mol.GetSubstructMatches(patt)
+        if pb_matches:
+            bb_atoms = []
+            for m in pb_matches:
+                bb_atoms.extend([m[0], m[2]])
+            backbone = tuple(dict.fromkeys(bb_atoms))
+        else:
+            return backbone, None
     backbone_idx = list(backbone)
     backbone_idx.reverse()
     return backbone, backbone_idx
- 
 
-def create_peptide_of_essentialAA(sequence, cyclic=True):
+
+def reference_aa_monomer(monomers_path=None): 
     """
-
-    :param sequence: sequence of essential AA.
-    :type sequence: One letter code
-    :param cyclic: Optional "cyclic".
-    :type cyclic: True or False
-    :return: mol
-
-    """
-
-    try:
-        mol = Chem.MolFromSequence(sequence)
-    except:
-        return None
-    if cyclic:
-        backbone, backbone_idx = detect_backbone(mol)
-        c_index = backbone[0]
-        n_index = backbone[-1]
-        mol = link_aa_by_peptide_bond(mol, c_index, n_index)
-    return mol
-
-
-def reference_aa_monomer(monomers_path): 
-    """
-
-    :param monomers_path: sequence of essential AA.
-    :type sequence: One letter code
-    :param cyclic: Optional "cyclic".
-    :type cyclic: True or False
-    :return: mol
-
+    Load monomer library from monomer.tsv file.
     """
     if monomers_path:
         monomers = pd.read_csv(monomers_path, sep='\t', index_col=0)
     else:
         monomers = pd.read_csv(monomer_path, sep='\t', index_col=0)
+    if 'Error' in monomers.columns:
+        monomers = monomers.loc[monomers['Error'] != 1, :]
     references = {}
     for i in monomers.index:
         smile = monomers.loc[i, 'Smiles']
-        code = monomers.loc[i, 'Code']
-        weight = float(monomers.loc[i, 'Weight'])
-        symbol = monomers.loc[i, 'Symbol']
-        symbol = code if str(symbol).strip() == '' or str(symbol).upper().strip() == 'NAN' else symbol
+        code = str(monomers.loc[i, 'Code']).strip()
+        try:
+            weight = float(monomers.loc[i, 'Weight'])
+        except:
+            weight = 0.0
+        symbol = str(monomers.loc[i, 'Symbol']).strip()
+        symbol = code if symbol == '' or symbol.upper() == 'NAN' else symbol
         try:
             aa = Chem.MolFromSmiles(smile)
-            match = aa.GetSubstructMatches(Chem.MolFromSmiles("NCC=O"))
-            if match and match[0]:
+            if aa is None:
+                continue
+            n_idx, c_idx = find_terminals(aa)
+            if n_idx is not None and c_idx is not None:
                 num_atoms = aa.GetNumAtoms()
-                references[code] = [aa, symbol, num_atoms, match[0]]
+                references[code] = [aa, symbol, num_atoms, [n_idx, 0, c_idx, 0]]
         except:
             pass
     return references
 
-def create_peptide_of_no_essentialAA(sequence, references, cyclic=True):
-    """
 
-    :param sequence: sequence of noessential AA.
-    :type sequence: One letter code
-    :param references: monomers.
-    :type references: from :py:func:`reference_aa_monomer`
-    :param cyclic: Optional "cyclic".
-    :type cyclic: True or False
-    :return: mol
-
+def create_peptide_of_no_essentialAA(sequence, references=None, cyclic=True):
     """
-    peptide, pep_idx = references[sequence[0]][0], references[sequence[0]][-1]
-    pep_c_index, first_n_index = pep_idx[2], pep_idx[0]
-    for aa_code in sequence[1:]:
-        aa, idx = references[aa_code][0], references[aa_code][-1]
-        c_index, n_index = idx[2], idx[0]
-        peptide, pep_c_index = connect_two_aa_with_peptide_bond(peptide, pep_c_index, aa, c_index, n_index)
-    if cyclic:
-        peptide = link_aa_by_peptide_bond(peptide, pep_c_index, first_n_index)
-    return peptide
+    Create a peptide molecule from non-essential / modified amino acid sequence.
+    """
+    if references is None:
+        references = reference_aa_monomer(None)
+    mols = []
+    for aa_code in sequence:
+        if aa_code in references:
+            mols.append(references[aa_code][0])
+        else:
+            m = Chem.MolFromSmiles(aa_code)
+            if m is not None:
+                mols.append(m)
+    if mols:
+        return build_peptide_from_mols(mols, cyclic=cyclic)
+    return None
+
 
 def connect_two_aa_with_peptide_bond(aa1, c_index1, aa2, c_index2, n_index2):
     """
-    Connect two amino acids with a peptide bond.
-
-    :param aa1: The first amino acid molecule.
-    :type aa1: Chem.Mol
-    :param c_index1: The index of the carbon atom in the first amino acid where the peptide bond will be formed.
-    :type c_index1: int
-    :param aa2: The second amino acid molecule.
-    :type aa2: Chem.Mol
-    :param c_index2: The index of the carbon atom in the second amino acid which will be involved in the peptide bond formation.
-    :type c_index2: int
-    :param n_index2: The index of the nitrogen atom in the second amino acid where the peptide bond will be formed.
-    :type n_index2: int
-    :return: A tuple containing two elements:
-        - The connected peptide molecule formed by joining the two amino acids with a peptide bond.
-        - The updated index of the carbon atom in the second amino acid (after accounting for the combination of the two amino acids).
-    :rtype: tuple[Chem.Mol, int]
-
+    Connect two amino acids with a peptide bond using tag-based atom tracking.
     """
-    c_index2, n_index2 = c_index2 + aa1.GetNumAtoms() - 1, n_index2 + aa1.GetNumAtoms() - 1
-    peptide = Chem.CombineMols(aa1, aa2)
-    peptide = link_aa_by_peptide_bond(peptide, c_index1, n_index2)
-    return peptide, c_index2
+    m1 = Chem.RWMol(aa1)
+    m2 = Chem.RWMol(aa2)
+    m1.GetAtomWithIdx(c_index1).SetIntProp("_c1", 1)
+    m2.GetAtomWithIdx(n_index2).SetIntProp("_n2", 1)
+    m2.GetAtomWithIdx(c_index2).SetIntProp("_c2", 1)
+    
+    combined = Chem.RWMol(Chem.CombineMols(m1, m2))
+    
+    c1_idx = None
+    to_delete = []
+    for a in combined.GetAtoms():
+        if a.HasProp("_c1"):
+            c1_idx = a.GetIdx()
+            for nb in a.GetNeighbors():
+                if nb.GetSymbol() == 'O' and combined.GetBondBetweenAtoms(c1_idx, nb.GetIdx()).GetBondType() == Chem.BondType.SINGLE:
+                    to_delete.append(nb.GetIdx())
+                    for h in nb.GetNeighbors():
+                        if h.GetAtomicNum() == 1:
+                            to_delete.append(h.GetIdx())
+                    break
+            break
+            
+    for idx in sorted(set(to_delete), reverse=True):
+        combined.RemoveAtom(idx)
+        
+    c1_final = None
+    n2_final = None
+    c2_final = None
+    for a in combined.GetAtoms():
+        if a.HasProp("_c1"):
+            c1_final = a.GetIdx()
+        elif a.HasProp("_n2"):
+            n2_final = a.GetIdx()
+        if a.HasProp("_c2"):
+            c2_final = a.GetIdx()
+            
+    if c1_final is not None and n2_final is not None:
+        if not combined.GetBondBetweenAtoms(c1_final, n2_final):
+            combined.AddBond(c1_final, n2_final, Chem.BondType.SINGLE)
+            
+    if c1_final is not None:
+        combined.GetAtomWithIdx(c1_final).ClearProp("_c1")
+    if n2_final is not None:
+        combined.GetAtomWithIdx(n2_final).ClearProp("_n2")
+    if c2_final is not None:
+        combined.GetAtomWithIdx(c2_final).ClearProp("_c2")
+        
+    res = combined.GetMol()
+    try:
+        Chem.SanitizeMol(res)
+    except:
+        pass
+    return res, c2_final
 
 
 def get_molblock(mol):
