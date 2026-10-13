@@ -13,13 +13,7 @@ Welcome to the documentation for **cyclicpeptide**.
 
 ## Installation
 
-Install from PyPI with pip:
-
-```bash
-pip install cyclicpeptide
-```
-
-Or set up a development environment from source with [uv](https://docs.astral.sh/uv/):
+Clone the repository and install with [uv](https://docs.astral.sh/uv/) (recommended):
 
 ```bash
 git clone https://github.com/partrita/cyclicpeptide.git

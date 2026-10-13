@@ -4,9 +4,21 @@ This tutorial walks through building, visualizing, and analyzing cyclic peptides
 
 ## 1. Install Package
 
+Clone the repository and install with [uv](https://docs.astral.sh/uv/):
+
 ```bash
-pip install cyclicpeptide
+git clone https://github.com/partrita/cyclicpeptide.git
+cd cyclicpeptide
+uv sync
 ```
+
+Then activate the environment and run Python:
+
+```bash
+uv run python
+```
+
+In Python:
 
 ## 2. Create a Cyclic Peptide by Sequence2Structure
 
