@@ -25,7 +25,6 @@ import pandas as pd
 from IPython.display import SVG, display
 from rdkit import Chem
 from rdkit.Chem.Draw import rdMolDraw2D
-import pkg_resources
 from .setting import *
 from rdkit.Chem.rdchem import RWMol, AtomPDBResidueInfo
 def mol2seq_for_essentialAA(m):
